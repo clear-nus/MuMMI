@@ -5,7 +5,7 @@ This repository contains the code for our paper [Multi-Modal Mutual Information 
 
 This work focuses on learning useful and robust deep world models using multiple, possibly unreliable, sensors. We find that current methods do not sufficiently encourage a shared representation between modalities; this can cause poor performance on downstream tasks and over-reliance on specific sensors. As a solution, we contribute a new multi-modal deep latent state-space model, trained using a mutual information lower-bound. The key innovation is a specially-designed density ratio estimator that encourages consistency between the latent codes of each modality. We tasked our method to learn policies (in a self-supervised manner) on multi-modal Natural MuJoCo benchmarks and a challenging Table Wiping task. Experiments show our method significantly outperforms state-of-the-art deep reinforcement learning methods, particularly in the presence of missing observations.
 
-<!-- <img align="center" alt="Extended Tactile Sensing" src="https://github.com/clear-nus/ext-sense/blob/main/misc/tactile_extended.jpg?raw=true" width="710" height="435" /> -->
+<img align="center" alt="Multi-Modal Mutual Information" src="https://github.com/clear-nus/MuMMI/image/MuMMI.pdf?raw=true" width="710" height="435" />
 
 ## Environment Setup 
 
