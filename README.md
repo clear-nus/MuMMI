@@ -37,7 +37,7 @@ e.g. python mummi.py --logdir ./logdir/dmc_walker_walk/mummi --task dmc_walker_w
 e.g. python cvrl.py --logdir ./logdir/dmc_walker_walk/cvrl --task dmc_walker_walk
 ```
 
-To change the hyperparameters, please modify ```config.py```.
+To change hyperparameters, please modify ```config.py```.
 
 ## BibTeX
 
