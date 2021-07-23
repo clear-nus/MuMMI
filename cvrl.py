@@ -1,9 +1,3 @@
-"""
-This is the our implementation of CVRL for multimodal inputs
-1. The missing data is processed with zero masked before concat to an embed
-https://github.com/Yusufma03/CVRL_dev
-https://arxiv.org/abs/2008.02430
-"""
 import wrappers
 import tools
 import models
@@ -33,86 +27,6 @@ sys.path.append(str(pathlib.Path(__file__).parent))
 from config import define_config as define_config
 from tools import cal_result
 
-
-# This is the original config
-# def define_config():
-#     config = tools.AttrDict()
-#     # General.
-#     config.logdir = pathlib.Path('.')
-#     config.seed = 0
-#     config.steps = 5e6
-#     config.eval_every = 1e4
-#     config.log_every = 1e3
-#     config.log_scalars = True
-#     config.log_images = True
-#     config.gpu_growth = True
-#     config.precision = 16
-#     # Environment.
-#     config.task = 'dmc_walker_walk'
-#     config.envs = 1
-#     config.parallel = 'none'
-#     config.action_repeat = 2
-#     config.time_limit = 1000
-#     config.prefill = 5000
-#     config.eval_noise = 0.0
-#     config.clip_rewards = 'none'
-#     # Model.
-#     config.deter_size = 200
-#     config.stoch_size = 30
-#     config.num_units = 400
-#     config.dense_act = 'elu'
-#     config.cnn_act = 'relu'
-#     config.cnn_depth = 32
-#     config.pcont = False
-#     config.free_nats = 3.0
-#     config.kl_scale = 1.0
-#     config.pcont_scale = 10.0
-#     config.weight_decay = 0.0
-#     config.weight_decay_pattern = r'.*'
-#     # Training.
-#     config.batch_size = 50
-#     config.batch_length = 50
-#     config.train_every = 1000
-#     config.train_steps = 100
-#     config.pretrain = 100
-#     config.model_lr = 6e-4
-#     config.value_lr = 8e-5
-#     config.actor_lr = 8e-5
-#     config.grad_clip = 100.0
-#     config.dataset_balance = False
-#     # Behavior.
-#     config.discount = 0.99
-#     config.disclam = 0.95
-#     config.horizon = 15
-#     config.action_dist = 'tanh_normal'
-#     config.action_init_std = 5.0
-#     config.expl = 'additive_gaussian'
-#     config.expl_amount = 0.3
-#     config.expl_decay = 0.0
-#     config.expl_min = 0.0
-#     config.log_imgs = False
-#
-#     # natural or not
-#     config.natural = False
-#
-#     # obs model
-#     config.obs_model = 'contrastive'
-#
-#     # SAC settings
-#     config.num_Qs = 2
-#     config.use_sac = False
-#     config.use_dreamer = True
-#
-#     config.reward_only = False
-#
-#     # forward search
-#     config.forward_search = False
-#     config.trajectory_opt = True
-#     config.traj_opt_lr = 0.003
-#     config.num_samples = 20
-#     return config
-
-
 class CVRL(tools.Module):
 
     def __init__(self, config, datadir, actspace, writer):
@@ -138,8 +52,6 @@ class CVRL(tools.Module):
             self._dataset = iter(self._strategy.experimental_distribute_dataset(
                 load_dataset(datadir, self._c)))
             self._build_model()
-        # self._dataset = iter(load_dataset(datadir, self._c))
-        # self._build_model()
 
     def __call__(self, obs, reset, state=None, training=True):
         step = self._step.numpy().item()
@@ -147,12 +59,10 @@ class CVRL(tools.Module):
         if state is not None and reset.any():
             mask = tf.cast(1 - reset, self._float)[:, None]
             state = tf.nest.map_structure(lambda x: x * mask, state)
-        # if self._should_train(step):
         if self._should_train(step) and not self._c.test:
             log = self._should_log(step)
             n = self._c.pretrain if self._should_pretrain() else self._c.train_steps
             print(f'Training for {n} steps.')
-            # with self._strategy.scope():
             for train_step in range(n):
                 log_images = self._c.log_images and log and train_step == 0
                 self.train(next(self._dataset), log_images)
@@ -171,14 +81,11 @@ class CVRL(tools.Module):
         else:
             latent, action = state
 
-        # embed = self._encode_img(preprocess(obs, self._c))
         obs = preprocess(obs, self._c)
-        embed = self._encode_img(obs)  # * obs["img_flag"]
+        embed = self._encode_img(obs)
         if self._c.multi_modal:
             embed_depth = self._encode_dep(obs)
             embed_touch = self._encode_touch(obs["touch"])
-            #embed_audio = self._encode_audio(obs["audio"])
-            #embed = tf.concat([embed, embed_depth, embed_touch, embed_audio], -1)
             embed = tf.concat([embed, embed_depth, embed_touch], -1)
         latent, _ = self._dynamics.obs_step(latent, action, embed)
         feat = self._dynamics.get_feat(latent)
@@ -204,7 +111,6 @@ class CVRL(tools.Module):
     @tf.function()
     def train(self, data, log_images=False):
         self._strategy.experimental_run_v2(self._train, args=(data, log_images))
-        # self._train(data, log_images)
 
     def _train(self, data, log_images):
         with tf.GradientTape() as model_tape:
@@ -212,8 +118,6 @@ class CVRL(tools.Module):
             if self._c.multi_modal:
                 embed_depth = self._encode_dep(data)
                 embed_touch = self._encode_touch(data["touch"])
-                # embed_audio = self._encode_audio(data["audio"])
-                # embed = tf.concat([embed, embed_depth, embed_touch, embed_audio], -1)
                 embed = tf.concat([embed, embed_depth, embed_touch], -1)
 
             post, prior = self._dynamics.observe(embed, data['action'])
@@ -280,13 +184,9 @@ class CVRL(tools.Module):
 
         model_norm = self._model_opt(model_tape, model_loss)
         states = tf.concat([post['stoch'], post['deter']], axis=-1)
-        # states = tf.reshape(states, [-1, states.shape[-1]])
         rewards = data['reward']
-        # rewards = tf.reshape(rewards, [-1, 1])
         dones = tf.zeros_like(rewards)
-        # dones = tf.reshape(dones, [-1, 1])
         actions = data['action']
-        # actions = tf.reshape(actions, [-1, actions.shape[-1]])
 
         if self._c.use_sac:
             self._sac._do_training(self._step, states, actions, rewards, dones)
@@ -307,7 +207,6 @@ class CVRL(tools.Module):
         self._encode_img = models.ConvEncoder(self._c.cnn_depth, cnn_act, modality="image")
         self._encode_dep = models.ConvEncoder(self._c.cnn_depth, cnn_act, modality="depth")
         self._encode_touch = models.Dense(n=4, d_hidden=256, d_out=1024, name="touch")
-        # self._encode_audio = models.Dense(n=4, d_hidden=128, d_out=1024, name="audio")
 
         self._dynamics = models.RSSM(
             self._c.stoch_size, self._c.deter_size, self._c.deter_size)
@@ -665,21 +564,10 @@ def test(config):
     writer = tf.summary.create_file_writer(
         str(config.logdir), max_queue=1000, flush_millis=20000)
     writer.set_as_default()
-    # train_envs = [wrappers.Async(lambda: make_env(
-    #     config, writer, 'train', datadir, store=True), config.parallel)
-    #               for _ in range(config.envs)]
     test_envs = [wrappers.Async(lambda: make_env(
         config, writer, 'test', datadir, train=False), config.parallel)
                  for _ in range(config.envs)]
     actspace = test_envs[0].action_space
-
-    # # Prefill dataset with random episodes.
-    # step = count_steps(datadir, config)
-    # prefill = max(0, config.prefill - step)
-    # print(f'Prefill dataset with {prefill} steps.')
-    # random_agent = lambda o, d, _: ([actspace.sample() for _ in d], None)
-    # tools.simulate(random_agent, train_envs, prefill / config.action_repeat)
-    # writer.flush()
 
     # Train and regularly evaluate the agent.
     step = count_steps(datadir, config)
@@ -702,11 +590,6 @@ def test(config):
             tools.simulate(
                 functools.partial(agent, training=False), test_envs, episodes=1)
             writer.flush()
-            # print('Start collection.')
-            # steps = config.eval_every // config.action_repeat
-            # state = tools.simulate(agent, train_envs, steps, state=state)
-            # step = count_steps(datadir, config)
-            # agent.save(config.logdir / 'variables.pkl')
         for env in test_envs:
             env.close()
 
@@ -726,7 +609,6 @@ if __name__ == '__main__':
             f'--{key}', type=tools.args_type(value), default=value)
     args = parser.parse_args()
 
-    # main(args)
     config = parser.parse_args()
     if config.test:
         test(config)
