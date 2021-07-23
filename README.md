@@ -44,14 +44,11 @@ To change hyperparameters, please modify ```config.py```.
 To cite this work, please use:
 
 ```
-@misc{chen2021multimodal,
-      title={Multi-Modal Mutual Information (MuMMI) Training for Robust Self-Supervised Deep Reinforcement Learning}, 
-      author={Kaiqi Chen and Yong Lee and Harold Soh},
-      year={2021},
-      eprint={2107.02339},
-      archivePrefix={arXiv},
-      primaryClass={cs.LG}
-}
+@inproceedings{Chen2021MuMMI,
+title={Multi-Modal Mutual Information (MuMMI) Training for Robust Self-Supervised Deep Reinforcement Learning},
+author={Kaiqi Chen and Yong Lee and Harold Soh},
+year={2021},
+booktitle={IEEE International Conference on Robotics and Automation (ICRA)}}
 ```
 
 ### Acknowledgement 
