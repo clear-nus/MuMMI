@@ -23,67 +23,8 @@ sys.path.append(str(pathlib.Path(__file__).parent))
 import models
 import tools
 import wrappers
-from config import define_config as define_config  # Yong Lee, this is a debug config for fast exe
+from config import define_config as define_config 
 from tools import cal_result
-
-
-# def define_config(): # Yong Lee, this is the default setting
-#     config = tools.AttrDict()
-#     # General.
-#     config.logdir = pathlib.Path('.')
-#     config.seed = 0
-#     config.steps = 5e6
-#     config.eval_every = 1e4
-#     config.log_every = 1e3
-#     config.log_scalars = True
-#     config.log_images = True
-#     config.gpu_growth = True
-#     config.precision = 16
-#     # Environment.
-#     config.task = 'dmc_walker_walk'
-#     config.envs = 1
-#     config.parallel = 'none'
-#     config.action_repeat = 2
-#     config.time_limit = 1000
-#     config.prefill = 5000
-#     config.eval_noise = 0.0
-#     config.clip_rewards = 'none'
-#     # Model.
-#     config.deter_size = 200
-#     config.stoch_size = 30
-#     config.num_units = 400
-#     config.dense_act = 'elu'
-#     config.cnn_act = 'relu'
-#     config.cnn_depth = 32
-#     config.pcont = False
-#     config.free_nats = 3.0
-#     config.kl_scale = 1.0
-#     config.pcont_scale = 10.0
-#     config.weight_decay = 0.0
-#     config.weight_decay_pattern = r'.*'
-#     # Training.
-#     config.batch_size = 50
-#     config.batch_length = 50
-#     config.train_every = 1000
-#     config.train_steps = 100
-#     config.pretrain = 100
-#     config.model_lr = 6e-4
-#     config.value_lr = 8e-5
-#     config.actor_lr = 8e-5
-#     config.grad_clip = 100.0
-#     config.dataset_balance = False
-#     # Behavior.
-#     config.discount = 0.99
-#     config.disclam = 0.95
-#     config.horizon = 15
-#     config.action_dist = 'tanh_normal'
-#     config.action_init_std = 5.0
-#     config.expl = 'additive_gaussian'
-#     config.expl_amount = 0.3
-#     config.expl_decay = 0.0
-#     config.expl_min = 0.0
-#     return config
-
 
 class Dreamer(tools.Module):
 
@@ -139,10 +80,10 @@ class Dreamer(tools.Module):
             latent, action = state
 
         obs = preprocess(obs, self._c)
-        embed = self._encode_img(obs)  # * obs["img_flag"]
+        embed = self._encode_img(obs)
         if self._c.multi_modal:
-            embed_depth = self._encode_dep(obs)  # * obs["dep_flag"]
-            embed_touch = self._encode_touch(obs["touch"])  # * obs["touch_flag"]
+            embed_depth = self._encode_dep(obs)  
+            embed_touch = self._encode_touch(obs["touch"])
             embed_audio = self._encode_audio(obs["audio"])
             embed = tf.concat([embed, embed_depth, embed_touch, embed_audio], -1)
 
@@ -196,8 +137,6 @@ class Dreamer(tools.Module):
                 likes.audio = tf.reduce_mean(recon_audio)
 
             likes.reward = tf.reduce_mean(reward_pred.log_prob(data['reward']))
-            # if self._c.multi_modal:
-            #     likes.depth = tf.reduce_mean(depth_pred.log_prob(data['depth']))
             if self._c.pcont:
                 pcont_pred = self._pcont(feat)
                 pcont_target = self._c.discount * data['discount']
@@ -375,7 +314,6 @@ def preprocess(obs, config):
         obs['image'] = tf.cast(obs['image'], dtype) / 255.0 - 0.5
         obs['depth'] = tf.cast(obs['depth'], dtype) / 200.0 - 0.5
         obs['touch'] = tf.cast(obs['touch'], dtype)
-#         obs['audio'] = tf.cast(obs['audio'], dtype) / 10240.0
         clip_rewards = dict(none=lambda x: x, tanh=tf.tanh)[config.clip_rewards]
         obs['reward'] = clip_rewards(obs['reward'])
     return obs
@@ -409,8 +347,6 @@ def summarize_episode(episode, config, datadir, writer, prefix):
         (f'{prefix}/length', len(episode['reward']) - 1),
         (f'episodes', episodes)]
     step = count_steps(datadir, config)
-    # with (config.logdir / 'metrics.jsonl').open('a') as f:
-    #     f.write(json.dumps(dict([('step', step)] + metrics)) + '\n')
     if config.test:
         with (config.logdir / 'results.jsonl').open('a') as f:
             f.write(json.dumps(dict([('step', step)] + metrics)) + '\n')
@@ -524,21 +460,10 @@ def test(config):
     writer = tf.summary.create_file_writer(
         str(config.logdir), max_queue=1000, flush_millis=20000)
     writer.set_as_default()
-    # train_envs = [wrappers.Async(lambda: make_env(
-    #     config, writer, 'train', datadir, store=True), config.parallel)
-    #               for _ in range(config.envs)]
     test_envs = [wrappers.Async(lambda: make_env(
         config, writer, 'test', datadir, store=False), config.parallel)
                  for _ in range(config.envs)]
     actspace = test_envs[0].action_space
-
-    # # Prefill dataset with random episodes.
-    # step = count_steps(datadir, config)
-    # prefill = max(0, config.prefill - step)
-    # print(f'Prefill dataset with {prefill} steps.')
-    # random_agent = lambda o, d, _: ([actspace.sample() for _ in d], None)
-    # tools.simulate(random_agent, train_envs, prefill / config.action_repeat)
-    # writer.flush()
 
     # Train and regularly evaluate the agent.
     step = count_steps(datadir, config)
@@ -561,11 +486,6 @@ def test(config):
             tools.simulate(
                 functools.partial(agent, training=False), test_envs, episodes=1)
             writer.flush()
-            # print('Start collection.')
-            # steps = config.eval_every // config.action_repeat
-            # state = tools.simulate(agent, train_envs, steps, state=state)
-            # step = count_steps(datadir, config)
-            # agent.save(config.logdir / 'variables.pkl')
         for env in test_envs:
             env.close()
 
@@ -585,7 +505,6 @@ if __name__ == '__main__':
     for key, value in define_config().items():
         parser.add_argument(f'--{key}', type=tools.args_type(value), default=value)
 
-    # main(parser.parse_args())
     config = parser.parse_args()
     if config.test:
         test(config)
