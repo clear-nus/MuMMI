@@ -11,8 +11,14 @@ This work focuses on learning useful and robust deep world models using multiple
 
 The code is tested on Ubuntu 16.04, Python 3.7 and CUDA 10.2. Please download the relevant Python packages by running:
 
-```bash
-pip install -r requirements.txt
+Get dependencies:
+
+```
+pip3 install --user tensorflow-gpu==2.1.0
+pip3 install --user tensorflow_probability
+pip3 install --user git+git://github.com/deepmind/dm_control.git
+pip3 install --user pandas
+pip3 install --user matplotlib
 ```
 
 Also please install Mujoco from https://github.com/openai/mujoco-py.
