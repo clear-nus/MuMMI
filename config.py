@@ -103,11 +103,11 @@ def define_config_debug():
     """
     config = define_config()
 
-    config.steps = 500  # iteration steps? or perform
-    config.eval_every = 50  # steps for evaluate
-    config.log_every = 50  # steps interval for log
-    config.time_limit = 20  # 1000
-    config.prefill = 20  # 50/20 就是3集咯
+    config.steps = 500  
+    config.eval_every = 50 
+    config.log_every = 50 
+    config.time_limit = 20 
+    config.prefill = 20  
 
     config.batch_size = 2
     config.batch_length = 10
