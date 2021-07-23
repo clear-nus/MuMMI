@@ -1,8 +1,3 @@
-"""
-This is the official implementation of Dreamer.
-Dream to Control: Learning Behaviors by Latent Imagination  https://arxiv.org/abs/1912.01603
-https://github.com/danijar/dreamer
-"""
 import argparse
 import collections
 import functools
@@ -25,7 +20,7 @@ sys.path.append(str(pathlib.Path(__file__).parent))
 import models
 import tools
 import wrappers
-from config import define_config as define_config  # Yong Lee, this is a debug config for fast exe
+from config import define_config as define_config
 from tools import cal_result
 
 
@@ -87,21 +82,15 @@ class CMDreamer(tools.Module):
         embed_img = self._encode_img(obs)
         embed_dep = self._encode_dep(obs)
         embed_touch = self._encode_touch(obs["touch"])
-        # embed_audio = self._encode_audio(obs["audio"])
         prob_img = self._embed2p_img(embed_img)
         prob_dep = self._embed2p_dep(embed_dep)
         prob_touch = self._embed2p_touch(embed_touch)
-        # prob_audio = self._embed2p_audio(embed_audio)
-
-        # embed = (prob_img["mean"] * prob_dep["std"] * obs["image_flag"] +
-        #          prob_dep["mean"] * prob_img["std"] * obs["depth_flag"]) / (
-        #                 prob_img["std"] * obs["depth_flag"] + prob_dep["std"] * obs["image_flag"] + 0.1)
+        
         w_img = obs["image_flag"] / prob_img["std"]
         w_dep = obs["depth_flag"] / prob_dep["std"]
         w_touch = obs["touch_flag"] / prob_touch["std"]
-        # w_audio = obs["audio_flag"] / prob_audio["std"]
         embed = w_img * prob_img["mean"] + w_dep * prob_dep["mean"]
-        embed = embed + w_touch * prob_touch["mean"]  # + w_audio * prob_audio["mean"]
+        embed = embed + w_touch * prob_touch["mean"]
         embed = embed / (w_img + w_dep + w_touch + 0.01)
 
         latent, _ = self._dynamics.obs_step(latent, action, embed)
@@ -128,7 +117,6 @@ class CMDreamer(tools.Module):
     @tf.function()
     def train(self, data, log_images=False):
         self._strategy.experimental_run_v2(self._train, args=(data, log_images))
-        # self._train(data, log_images)
 
     def _train(self, data, log_images):
         with tf.GradientTape() as model_tape:
@@ -136,19 +124,16 @@ class CMDreamer(tools.Module):
             embed_img = self._encode_img(data)
             embed_dep = self._encode_dep(data)
             embed_touch = self._encode_touch(data["touch"])
-            # embed_audio = self._encode_audio(data["audio"])
             prob_img = self._embed2p_img(embed_img)
             prob_dep = self._embed2p_dep(embed_dep)
             prob_touch = self._embed2p_touch(embed_touch)
-            # prob_audio = self._embed2p_audio(embed_audio)
 
             # poe
             w_img = data["image_flag"] / prob_img["std"]
             w_dep = data["depth_flag"] / prob_dep["std"]
             w_touch = data["touch_flag"] / prob_touch["std"]
-            # w_audio = data["audio_flag"] / prob_audio["std"]
             embed = w_img * prob_img["mean"] + w_dep * prob_dep["mean"]
-            embed = embed + w_touch * prob_touch["mean"]  # + w_audio * prob_audio["mean"]
+            embed = embed + w_touch * prob_touch["mean"]
             embed = embed / (w_img + w_dep + w_touch + 0.01)
 
             # RSSM
@@ -163,29 +148,14 @@ class CMDreamer(tools.Module):
             # loss
             likes = tools.AttrDict()
             likes.reward = tf.reduce_mean(reward_pred.log_prob(data['reward']))
-            # contrast_img = self._contra_img(feat, prob_img["mean"], data["image_flag"])
-            # contrast_dep = self._contra_dep(feat, prob_dep["mean"], data["depth_flag"])
             feat_embed = self._z2embed(feat)
             constrast_img = self._contrastive(feat_embed, prob_img["mean"], data["image_flag"])
             constrast_dep = self._contrastive(feat_embed, prob_dep["mean"], data["depth_flag"])
             constrast_touch = 0.001 * self._contrastive(feat_embed, prob_touch["mean"], data["touch_flag"])
-            # walker_stand 0.0025
-            # walker_walk 0.001
-            # finger_spin 0.001 & 0.1
-            # constrast_audio = weight[0, 0, 3] * self._contrastive(feat_embed, prob_audio["mean"], data["audio_flag"])
-
-            #
-            # # likes.image = tf.reduce_mean(image_pred.log_prob(data['image']))
-            # # likes.depth = tf.reduce_mean(depth_pred.log_prob(data['depth']))
-            # likes.image = tf.reduce_mean(contrast_img)
-            # likes.depth = tf.reduce_mean(contrast_dep)
-            # likes.image = tf.reduce_mean(self._contra_img(feat, embed))
+            
             likes.image = tf.reduce_mean(constrast_img)
             likes.depth = tf.reduce_mean(constrast_dep)
             likes.touch = tf.reduce_mean(constrast_touch)
-            # likes.audio = tf.reduce_mean(constrast_audio)
-
-            # dep_max = tf.reduce_max(prob_dep["mean"])
 
             if self._c.pcont:
                 pcont_pred = self._pcont(feat)
@@ -227,8 +197,6 @@ class CMDreamer(tools.Module):
 
         if tf.distribute.get_replica_context().replica_id_in_sync_group == 0:
             if self._c.log_scalars:
-                # self._scalar_summaries(data, feat, prior_dist, post_dist, likes, div, model_loss, value_loss,
-                #                        actor_loss, model_norm, value_norm, actor_norm)
                 self._scalar_summaries(data, feat, prior_dist, post_dist, likes, div, model_loss, value_loss,
                                        actor_loss, model_norm, value_norm, actor_norm)
             if tf.equal(log_images, True):
@@ -240,20 +208,17 @@ class CMDreamer(tools.Module):
             leaky_relu=tf.nn.leaky_relu)
         cnn_act = acts[self._c.cnn_act]
         act = acts[self._c.dense_act]
-        # self._encode = models.ConvEncoder(self._c.cnn_depth, cnn_act)  # Yong Lee, modified
         self._encode_img = models.ConvEncoder(self._c.cnn_depth, cnn_act, modality="image")
         self._encode_dep = models.ConvEncoder(self._c.cnn_depth, cnn_act, modality="depth")
         self._encode_touch = models.Dense(n=4, d_hidden=128, d_out=1024, name="touch")
-        # self._encode_audio = models.Dense(n=4, d_hidden=128, d_out=1024, name="audio")
         self._embed2p_img = models.Embed2prob(1024, modality="image")
         self._embed2p_dep = models.Embed2prob(1024, modality="depth")
         self._embed2p_touch = models.Embed2prob(1024, modality="touch")
-        # self._embed2p_audio = models.Embed2prob(1024, modality="audio")
         self._dynamics = models.RSSM(self._c.stoch_size, self._c.deter_size, self._c.deter_size)
         self._z2embed = models.Dense(n=1, d_hidden=None, d_out=1024)
         self._decode_img = models.ConvDecoder(self._c.cnn_depth, cnn_act, shape=(64, 64, 3), modality="image")
         self._decode_dep = models.ConvDecoder(self._c.cnn_depth, cnn_act, shape=(64, 64, 1), modality="depth")
-        self._contrastive = models.ContrastiveModel6(kernel="mse")
+        self._contrastive = models.ContrastiveModel(kernel="mse")
         self._reward = models.DenseDecoder((), 2, self._c.num_units, act=act)
         if self._c.pcont:
             self._pcont = models.DenseDecoder((), 3, self._c.num_units, 'binary', act=act)
@@ -466,8 +431,6 @@ def summarize_episode(episode, config, datadir, writer, prefix):
         (f'{prefix}/length', len(episode['reward']) - 1),
         (f'episodes', episodes)]
     step = count_steps(datadir, config)
-    # with (config.logdir / 'metrics.jsonl').open('a') as f:
-    #     f.write(json.dumps(dict([('step', step)] + metrics)) + '\n')
     if config.test:
         with (config.logdir / 'results.jsonl').open('a') as f:
             f.write(json.dumps(dict([('step', step)] + metrics)) + '\n')
@@ -581,21 +544,10 @@ def test(config):
     writer = tf.summary.create_file_writer(
         str(config.logdir), max_queue=1000, flush_millis=20000)
     writer.set_as_default()
-    # train_envs = [wrappers.Async(lambda: make_env(
-    #     config, writer, 'train', datadir, store=True), config.parallel)
-    #               for _ in range(config.envs)]
     test_envs = [wrappers.Async(lambda: make_env(
         config, writer, 'test', datadir, store=False), config.parallel)
                  for _ in range(config.envs)]
     actspace = test_envs[0].action_space
-
-    # # Prefill dataset with random episodes.
-    # step = count_steps(datadir, config)
-    # prefill = max(0, config.prefill - step)
-    # print(f'Prefill dataset with {prefill} steps.')
-    # random_agent = lambda o, d, _: ([actspace.sample() for _ in d], None)
-    # tools.simulate(random_agent, train_envs, prefill / config.action_repeat)
-    # writer.flush()
 
     # Train and regularly evaluate the agent.
     step = count_steps(datadir, config)
@@ -618,11 +570,6 @@ def test(config):
             tools.simulate(
                 functools.partial(agent, training=False), test_envs, episodes=1)
             writer.flush()
-            # print('Start collection.')
-            # steps = config.eval_every // config.action_repeat
-            # state = tools.simulate(agent, train_envs, steps, state=state)
-            # step = count_steps(datadir, config)
-            # agent.save(config.logdir / 'variables.pkl')
         for env in test_envs:
             env.close()
 
@@ -641,7 +588,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     for key, value in define_config().items():
         parser.add_argument(f'--{key}', type=tools.args_type(value), default=value)
-    # main(parser.parse_args())
     config = parser.parse_args()
     if config.test:
         test(config)
