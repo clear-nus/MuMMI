@@ -11,7 +11,7 @@ from PIL import Image
 
 
 # wrapper
-class DeepMindControl:  # 感觉是用gym和自己定义的数据结构之间的接口
+class DeepMindControl
 
     def __init__(self, name, size=(64, 64), camera=None):
         domain, task = name.split('_', 1)
@@ -25,7 +25,7 @@ class DeepMindControl:  # 感觉是用gym和自己定义的数据结构之间的
             self._env = domain()
         self._size = size
         if camera is None:
-            camera = dict(quadruped=2).get(domain, 0)  # Yong Lee 请问你写的什么，感觉也有点道理
+            camera = dict(quadruped=2).get(domain, 0)
         self._camera = camera
 
     @property
@@ -63,10 +63,7 @@ class DeepMindControl:  # 感觉是用gym和自己定义的数据结构之间的
             raise ValueError("Only render mode 'rgb_array' is supported.")
         rgb = self._env.physics.render(*self._size, camera_id=self._camera)
         depth = self._env.physics.render(*self._size, camera_id=self._camera, depth=True)
-        depth = depth[:, :, np.newaxis]  # 让维度和image的一致
-
-        # cv2.imwrite("rgb.png", rgb[:, :, ::-1])
-        # cv2.imwrite("depth.png", depth)
+        depth = depth[:, :, np.newaxis]
         return rgb, depth
 
 
@@ -158,27 +155,27 @@ class Collect:
 
     def __init__(self, env, callbacks=None, precision=32):
         self._env = env
-        self._callbacks = callbacks or ()  # 用or 实现 判断
+        self._callbacks = callbacks or () 
         self._precision = precision
         self._episode = None
 
-    def __getattr__(self, name):  # 继承
+    def __getattr__(self, name): 
         return getattr(self._env, name)
 
     def step(self, action):
-        obs, reward, done, info = self._env.step(action)  # 直接 env step
+        obs, reward, done, info = self._env.step(action) 
         obs = {k: self._convert(v) for k, v in obs.items()}  # obs {k,v}->{k,convert(v)}
-        transition = obs.copy()  # 字典
+        transition = obs.copy() 
         transition['action'] = action
         transition['reward'] = reward
         transition['discount'] = info.get('discount', np.array(1 - float(done)))
-        self._episode.append(transition)  # 添加每帧到episodes中
+        self._episode.append(transition)  
         if done:
             episode = {k: [t[k] for t in self._episode] for k in self._episode[0]}
             episode = {k: self._convert(v) for k, v in episode.items()}
             info['episode'] = episode
             for callback in self._callbacks:
-                callback(episode)  # 存储数据
+                callback(episode) 
         return obs, reward, done, info
 
     def reset(self):
@@ -207,8 +204,8 @@ class TimeLimit:
 
     def __init__(self, env, duration):
         self._env = env
-        self._duration = duration  # 这里是500步长的限制
-        self._step = None  # 新加了步长计数
+        self._duration = duration
+        self._step = None 
 
     def __getattr__(self, name):
         return getattr(self._env, name)
@@ -218,8 +215,8 @@ class TimeLimit:
         obs, reward, done, info = self._env.step(action)
         self._step += 1
         if self._step >= self._duration:
-            done = True  # 步长到了，强制结束
-            if 'discount' not in info:  # 为何顺带处理 discount的问题？
+            done = True 
+            if 'discount' not in info: 
                 info['discount'] = np.array(1.0).astype(np.float32)
             self._step = None
         return obs, reward, done, info
@@ -230,9 +227,6 @@ class TimeLimit:
 
 
 class NaturalMujoco:
-    """
-    添加背景
-    """
 
     def __init__(self, env, dataset):
         self.dataset = dataset
@@ -297,24 +291,10 @@ class AudioMujoco:
 
     def _sound_obs(self, obs, done):
         obs = obs.copy()
-        #ncon = obs['n_contact']
-        #audio = self._sound["back_ground"][self._t:self._t + 4410]
-        #self._t = (self._t + 4410) % (self._sound["back_ground"].shape[0] - 4410)
-
-        #if ncon > self._ncon:
-        #    audio = audio // 2 + self._sound["audio_data"][:4410] // 2  # add a contact sound
-        #if done:
-        #    self._ncon = 0
-        #else:
-        #    self._ncon = ncon
-        #obs['audio'] = audio.reshape(-1)
         return obs
 
 
 class MissingMultimodal:
-    """
-    丢失数据
-    """
 
     def __init__(self, env, config):
         self._env = env
@@ -333,14 +313,14 @@ class MissingMultimodal:
 
     def _missing_obs(self, obs):
         obs_c = obs.copy()
-        for key, value in obs.items():  # 遍历所有observation
-            if key in self._c.miss_ratio:  # 判断是否有丢失的必要
+        for key, value in obs.items(): 
+            if key in self._c.miss_ratio: 
                 value_f = value
                 flag = np.array([1]).astype(np.float16)
-                if self._t < self._drop_end.get(key, 0):  # 继续丢失
+                if self._t < self._drop_end.get(key, 0):
                     value_f = 0 * value
                     flag = 0 * flag
-                elif np.random.rand() <= self._c.miss_ratio.get(key, -1.0):  # 得到丢失比率
+                elif np.random.rand() <= self._c.miss_ratio.get(key, -1.0): 
                     value_f = 0 * value
                     flag = 0 * flag
                     self._drop_end[key] = self._t + np.random.randint(1, self._c.max_miss_len)
@@ -355,73 +335,12 @@ class MissingMultimodal:
         obs = self._missing_obs(obs)
         return obs
 
-    # class MissingMultimodal:
-    #     """
-    #     丢失数据
-    #     """
-    #
-    #     def __init__(self, env, config):
-    #         self._env = env
-    #         self._c = config
-    #
-    #     def __getattr__(self, name):
-    #         return getattr(self._env, name)
-    #
-    #     def step(self, action):
-    #         obs, reward, done, info = self._env.step(action)
-    #         obs = self._missing_obs(obs)
-    #         return obs, reward, done, info
-    #
-    #     def _missing_obs(self, obs):
-    #         obs = obs.copy()
-    #         img = obs['image']
-    #         depth = obs["depth"]
-    #         touch = obs["touch"]
-    #         audio = obs["audio"]
-    #
-    #         dep_flag = np.array([1]).astype(np.float16)
-    #         img_flag = np.array([1]).astype(np.float16)
-    #         touch_flag = np.array([1]).astype(np.float16)
-    #         audio_flag = np.array([1]).astype(np.float16)
-    #         if np.random.rand() <= self._c.miss_ratio_r:
-    #             img = 0 * img
-    #             img_flag = 0 * img_flag
-    #         if np.random.rand() <= self._c.miss_ratio_d:
-    #             depth = 0 * depth
-    #             dep_flag = 0 * dep_flag
-    #         if np.random.rand() <= self._c.miss_ratio_t:
-    #             touch = 0 * touch
-    #             touch_flag = 0 * touch_flag
-    #         if np.random.rand() <= self._c.miss_ratio_a:
-    #             audio = 0 * audio
-    #             audio_flag = 0 * audio_flag
-    #
-    #         obs['image'] = img
-    #         obs['depth'] = depth
-    #         obs['touch'] = touch
-    #         obs['audio'] = audio
-    #         obs['img_flag'] = img_flag
-    #         obs['dep_flag'] = dep_flag
-    #         obs['touch_flag'] = touch_flag
-    #         obs['audio_flag'] = audio_flag
-    #         return obs
-
-    def reset(self):
-        obs = self._env.reset()
-        obs = self._missing_obs(obs)
-        return obs
-
-
 class ActionRepeat:
-    """
-    相同的action执行很多次，只是记录最后的obs，reward相加
-    """
-
     def __init__(self, env, amount):
         self._env = env
         self._amount = amount
 
-    def __getattr__(self, name):  # 测试下 是否完全继承
+    def __getattr__(self, name):
         return getattr(self._env, name)
 
     def step(self, action):
@@ -436,12 +355,6 @@ class ActionRepeat:
 
 
 class NormalizeActions:
-    """
-    Yong Lee, 为什么要对Action 进行归一化？
-    原来我们的policy给出的action 位于【-1,1】之间
-    而，真正的action space 位于【low, high】之间
-    """
-
     def __init__(self, env):
         self._env = env
         self._mask = np.logical_and(
@@ -555,7 +468,7 @@ class RewardObs:
         return obs
 
 
-class Async:  # 异步通讯？Yong Lee表示不懂
+class Async:
 
     _ACCESS = 1
     _CALL = 2
