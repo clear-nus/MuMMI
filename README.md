@@ -25,7 +25,10 @@ pip3 install --user pandas
 pip3 install --user matplotlib
 ```
 
-Also please install Mujoco from https://github.com/openai/mujoco-py.
+Please install Mujoco from https://github.com/openai/mujoco-py.
+
+Download other required files from Google Drive: [link](https://drive.google.com/drive/folders/1NELxGM8ayythWyCU-LmylPv317lIf5TT?usp=sharing). Put `natural_train.pkl` and `natural_valid.pkl` under the main folder (these two files are used to generate complex observations). Also replace `.mujoco` that you have installed from https://github.com/openai/mujoco-py (these files are used to set touch sensors for different tasks).
+
 
 ## Usage
 
